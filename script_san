@@ -67,3 +67,22 @@ invalid command name "if{0}{"
     invoked from within
 "script::run" line:1
 script did not successfully complete, status:1
+
+
+
+profiles fastL4 {
+    context all
+}
+profiles http-standard-bdf {
+    context all
+}
+profiles CLIENTSSL-TESTT {
+    context clientside
+}
+profiles f5-tcp-wan {
+    context all
+}
+profiles oneconnect {
+    context all
+}
+
