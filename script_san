@@ -1,84 +1,57 @@
 cli script virtual-details {
-    proc script::run {} {
-        puts "Début du script"
-        set hostconf [tmsh::get_config /sys global-settings hostname]
-        set hostname [tmsh::get_field_value [lindex $hostconf 0] hostname]
-        puts "Hostname récupéré : $hostname"
-        puts "Hostname,Partition,Virtual Server,Destination,Pool-Name,Pool-Status,Pool-Members,Profiles,Rules,Persist,Status,State,Total-Conn,Current-Conn,SSL SAN,Policies"
+proc script::init {} {
+}
 
-        foreach all_partitions [tmsh::get_config auth partition] {
-            set partition "[lindex [split $all_partitions " "] 2]"
-            puts "Traitement de la partition : $partition"
-            tmsh::cd /$partition
-
-            foreach { obj } [tmsh::get_config ltm virtual all-properties] {
-                puts "Traitement de l'objet virtual server : [tmsh::get_name $obj]"
-                set profiles [tmsh::get_field_value $obj "profiles"]
-                
-                if { [catch {
-                    foreach { status } [tmsh::get_status ltm virtual [tmsh::get_name $obj]] {
-                        set vipstatus [tmsh::get_field_value $status "status.availability-state"]
-                        set vipstate [tmsh::get_field_value $status "status.enabled-state"]
-                        set total_conn [tmsh::get_field_value $status "clientside.tot-conns"]
-                        set curr_conn [tmsh::get_field_value $status "clientside.cur-conns"]
-                    }
-                } err] } {
-                    puts "Erreur lors de la récupération du statut pour [tmsh::get_name $obj]: $err"
-                    continue
-                }
-
-                set poolname [tmsh::get_field_value $obj "pool"]
-                set remprof [regsub -all {\n} [regsub -all "context" [join $profiles "\n"] "context"] " "]
-                set profilelist [regsub -all "profiles " $remprof ""]
-
-                set persist [lindex [lindex [tmsh::get_field_value $obj "persist"] 0] 1]
-
-                # Récupération des informations des profiles SSL et SAN du certificat
-                set sslProfileNames {}
-                set sanList {}
-                foreach profile $profiles {
-                    if {[string match "*ssl*" $profile]} {
-                        lappend sslProfileNames $profile
-                        set certDetails [tmsh::get_field_value [tmsh::get_config ltm profile client-ssl $profile] "cert"]
-                        set certConfig [tmsh::get_config sys file ssl-cert $certDetails]
-                        lappend sanList [tmsh::get_field_value $certConfig "subject-alternative-name"]
-                    }
-                }
-
-                # Récupération des policies
-                set policies [tmsh::get_field_value $obj "policies"]
-                set policyNames {}
-                foreach policy $policies {
-                    lappend policyNames [tmsh::get_name $policy]
-                }
-                puts "Policies récupérées pour [tmsh::get_name $obj] : [join $policyNames ", "]"
-
-                if { $poolname != "none" } {
-                    foreach { p_status } [tmsh::get_status ltm pool $poolname] {
-                        set pool_status [tmsh::get_field_value $p_status "status.availability-state"]
-                    }
-
-                    set poolconfig [tmsh::get_config /ltm pool $poolname]
-                    foreach poolinfo $poolconfig {
-                        if { [catch { set member_name [tmsh::get_field_value $poolinfo "members" ]} err] } {
-                            set pool_member $err
-                            puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,$pool_status,$pool_member,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[join $sanList ", "],[join $policyNames ", "]"
-                        } else {
-                            set pool_member ""
-                            set member_name [tmsh::get_field_value $poolinfo "members" ]
-                            foreach member $member_name {
-                                append pool_member "[lindex $member 1] "
-                            }
-                            puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,$pool_status,$pool_member,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[join $sanList ", "],[join $policyNames ", "]"
-                        }
-                    }
-                } else {
-                    puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,none,none,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[join $sanList ", "],[join $policyNames ", "]"
-                }
-                puts "Fin du traitement de l'objet : [tmsh::get_name $obj]"
+proc script::run {} {
+    set hostconf [tmsh::get_config /sys global-settings hostname]
+    set hostname [tmsh::get_field_value [lindex $hostconf 0] hostname]
+    puts "Hostname,Partition,Virtual Server,Destination,Pool-Name,Pool-Status,Pool-Members,Profiles,Rules,Persist,Status,State,Total-Conn,Current-Conn,Policies"
+    foreach all_partitions [tmsh::get_config auth partition] {
+        set partition "[lindex [split $all_partitions " "] 2]"
+        tmsh::cd /$partition
+        foreach { obj } [tmsh::get_config ltm virtual all-properties] {
+            foreach { status } [tmsh::get_status ltm virtual [tmsh::get_name $obj]] {
+                set vipstatus [tmsh::get_field_value $status "status.availability-state"]
+                set vipstate [tmsh::get_field_value $status "status.enabled-state"]
+                set total_conn [tmsh::get_field_value $status "clientside.tot-conns"]
+                set curr_conn [tmsh::get_field_value $status "clientside.cur-conns"]
             }
-            puts "Fin du traitement de la partition : $partition"
+            
+            set poolname [tmsh::get_field_value $obj "pool"]
+            set profiles [tmsh::get_field_value $obj "profiles"]
+            set remprof [regsub -all {\n} [regsub -all  "    context" [join $profiles "\n"] "context"] " "]
+            set profilelist [regsub -all "profiles " $remprof ""]
+            set persist [lindex [lindex [tmsh::get_field_value $obj "persist"] 0] 1]
+            if { $poolname != "none" }{
+                foreach { p_status } [tmsh::get_status ltm pool $poolname] {
+                    set pool_status [tmsh::get_field_value $p_status "status.availability-state"]
+                }
+                set poolconfig [tmsh::get_config /ltm pool $poolname]
+                foreach poolinfo $poolconfig {
+                    if { [catch { set member_name [tmsh::get_field_value $poolinfo "members" ]} err] } {
+                        set pool_member $err
+                        puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,$pool_status,$pool_member,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[tmsh::get_field_value $obj "policies"]"
+                    } else {
+                        set pool_member ""
+                        set member_name [tmsh::get_field_value $poolinfo "members" ]
+                        foreach member $member_name {
+                            append pool_member "[lindex $member 1] ([lindex [lindex $member 2] 1]) "
+                        }
+                        puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,$pool_status,$pool_member,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[tmsh::get_field_value $obj "policies"]"
+                    }
+                }
+            } else {
+                puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,none,none,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[tmsh::get_field_value $obj "policies"]"
+            }
         }
-        puts "Fin du script"
     }
+}
+
+
+proc script::help {} {
+}
+
+proc script::tabc {} {
+}
+    total-signing-status not-all-signed
 }
