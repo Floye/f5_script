@@ -55,3 +55,15 @@ proc script::tabc {} {
 }
     total-signing-status not-all-signed
 }
+
+
+
+virtual-details7: script failed to complete:
+can't eval proc: "script::run"
+invalid command name "if{0}{"
+    while executing
+"if{[string match *CLIENTSSL* $profile]}{"
+    (procedure "script::run" line 23)
+    invoked from within
+"script::run" line:1
+script did not successfully complete, status:1
