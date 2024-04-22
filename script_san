@@ -12,15 +12,22 @@ cli script virtual-details {
             tmsh::cd /$partition
 
             foreach { obj } [tmsh::get_config ltm virtual all-properties] {
-                foreach { status } [tmsh::get_status ltm virtual [tmsh::get_name $obj]] {
-                    set vipstatus [tmsh::get_field_value $status "status.availability-state"]
-                    set vipstate [tmsh::get_field_value $status "status.enabled-state"]
-                    set total_conn [tmsh::get_field_value $status "clientside.tot-conns"]
-                    set curr_conn [tmsh::get_field_value $status "clientside.cur-conns"]
+                puts "Traitement de l'objet virtual server : [tmsh::get_name $obj]"
+                set profiles [tmsh::get_field_value $obj "profiles"]
+                
+                if { [catch {
+                    foreach { status } [tmsh::get_status ltm virtual [tmsh::get_name $obj]] {
+                        set vipstatus [tmsh::get_field_value $status "status.availability-state"]
+                        set vipstate [tmsh::get_field_value $status "status.enabled-state"]
+                        set total_conn [tmsh::get_field_value $status "clientside.tot-conns"]
+                        set curr_conn [tmsh::get_field_value $status "clientside.cur-conns"]
+                    }
+                } err] } {
+                    puts "Erreur lors de la récupération du statut pour [tmsh::get_name $obj]: $err"
+                    continue
                 }
 
                 set poolname [tmsh::get_field_value $obj "pool"]
-                set profiles [tmsh::get_field_value $obj "profiles"]
                 set remprof [regsub -all {\n} [regsub -all "context" [join $profiles "\n"] "context"] " "]
                 set profilelist [regsub -all "profiles " $remprof ""]
 
@@ -68,7 +75,9 @@ cli script virtual-details {
                 } else {
                     puts "$hostname,$partition,[tmsh::get_name $obj],[tmsh::get_field_value $obj "destination"],$poolname,none,none,$profilelist,[tmsh::get_field_value $obj "rules"],$persist,$vipstatus,$vipstate,$total_conn,$curr_conn,[join $sanList ", "],[join $policyNames ", "]"
                 }
+                puts "Fin du traitement de l'objet : [tmsh::get_name $obj]"
             }
+            puts "Fin du traitement de la partition : $partition"
         }
         puts "Fin du script"
     }
