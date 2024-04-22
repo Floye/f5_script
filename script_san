@@ -1,11 +1,14 @@
 cli script virtual-details {
     proc script::run {} {
+        puts "Début du script"
         set hostconf [tmsh::get_config /sys global-settings hostname]
         set hostname [tmsh::get_field_value [lindex $hostconf 0] hostname]
+        puts "Hostname récupéré : $hostname"
         puts "Hostname,Partition,Virtual Server,Destination,Pool-Name,Pool-Status,Pool-Members,Profiles,Rules,Persist,Status,State,Total-Conn,Current-Conn,SSL SAN,Policies"
 
         foreach all_partitions [tmsh::get_config auth partition] {
             set partition "[lindex [split $all_partitions " "] 2]"
+            puts "Traitement de la partition : $partition"
             tmsh::cd /$partition
 
             foreach { obj } [tmsh::get_config ltm virtual all-properties] {
@@ -41,6 +44,7 @@ cli script virtual-details {
                 foreach policy $policies {
                     lappend policyNames [tmsh::get_name $policy]
                 }
+                puts "Policies récupérées pour [tmsh::get_name $obj] : [join $policyNames ", "]"
 
                 if { $poolname != "none" } {
                     foreach { p_status } [tmsh::get_status ltm pool $poolname] {
@@ -66,5 +70,6 @@ cli script virtual-details {
                 }
             }
         }
+        puts "Fin du script"
     }
 }
